@@ -7,6 +7,14 @@ Coral device such as the
 [Dev Board](https://coral.withgoogle.com/products/dev-board) and provides an Object tracker for use with the detected objects.
 
 
+## Mods
+ yeah do all the below, but to run the tracker cd over to the 'gstreamer' folder and run the command below
+ ```bash
+ python3 detect.py --tracker sort --target person --threshold 0.25
+ ```
+
+
+
 ## Installation
 
 1.  First, be sure you have completed the [setup instructions for your Coral

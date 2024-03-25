@@ -116,6 +116,8 @@ def generate_svg(src_size, inference_size, inference_box, objs, labels, text_lin
             dwg.add(dwg.circle(center=(centroid_x_scaled, centroid_y_scaled), r=10, fill='blue'))
             dwg.add(dwg.rect(insert=(x, y), size=(w, h),
                              fill='none', stroke='red', stroke_width='2'))
+    
+    # If no tracker is used, draw the bounding box and centroid for each object
     else:
         for obj in objs:
             x0, y0, x1, y1 = list(obj.bbox)

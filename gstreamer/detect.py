@@ -1,3 +1,5 @@
+# Modification made by jccr to include centroid tracking and drawing and target selection
+#-----------------------------------------------------------
 # Copyright 2019 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,6 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 
 """
 A demo which runs object detection on camera frames using GStreamer.
@@ -32,6 +35,7 @@ python3 detect.py \
   --model ${TEST_DATA}/mobilenet_ssd_v2_coco_quant_postprocess_edgetpu.tflite \
   --labels ${TEST_DATA}/coco_labels.txt
 """
+
 import argparse
 import collections
 import common
@@ -44,7 +48,7 @@ import time
 from tracker import ObjectTracker
 
 
-Object = collections.namedtuple('Object', ['id', 'score', 'bbox'])
+Object = collections.namedtuple('Object', ['id', 'score', 'bbox', 'centroid'])
 
 
 def load_labels(path):
@@ -68,6 +72,7 @@ def generate_svg(src_size, inference_size, inference_box, objs, labels, text_lin
 
     for y, line in enumerate(text_lines, start=1):
         shadow_text(dwg, 10, y*20, line)
+
     if trackerFlag and (np.array(trdata)).size:
         for td in trdata:
             x0, y0, x1, y1, trackID = td[0].item(), td[1].item(
@@ -83,6 +88,7 @@ def generate_svg(src_size, inference_size, inference_box, objs, labels, text_lin
 
             # Relative coordinates.
             x, y, w, h = x0, y0, x1 - x0, y1 - y0
+
             # Absolute coordinates, input tensor space.
             x, y, w, h = int(x * inf_w), int(y *
                                              inf_h), int(w * inf_w), int(h * inf_h)
@@ -90,10 +96,24 @@ def generate_svg(src_size, inference_size, inference_box, objs, labels, text_lin
             x, y = x - box_x, y - box_y
             # Scale to source coordinate space.
             x, y, w, h = x * scale_x, y * scale_y, w * scale_x, h * scale_y
+
             percent = int(100 * obj.score)
+
             label = '{}% {} ID:{}'.format(
                 percent, labels.get(obj.id, obj.id), int(trackID))
+
             shadow_text(dwg, x, y - 5, label)
+
+
+            # Drawing centroid for each object
+            centroid_x = obj.centroid[0]
+            centroid_y = obj.centroid[1]
+            centroid_x_scaled = centroid_x * src_w  # Scale to source width
+            centroid_y_scaled = centroid_y * src_h  # Scale to source height
+
+            # Convert centroid coordinates to source space
+            # Drawing the centroid on the SVG with a larger radius and a highly visible color
+            dwg.add(dwg.circle(center=(centroid_x_scaled, centroid_y_scaled), r=10, fill='blue'))
             dwg.add(dwg.rect(insert=(x, y), size=(w, h),
                              fill='none', stroke='red', stroke_width='2'))
     else:
@@ -111,8 +131,23 @@ def generate_svg(src_size, inference_size, inference_box, objs, labels, text_lin
             percent = int(100 * obj.score)
             label = '{}% {}'.format(percent, labels.get(obj.id, obj.id))
             shadow_text(dwg, x, y - 5, label)
+
+
+            # Drawing centroid for each object
+            centroid_x = obj.centroid[0]
+            centroid_y = obj.centroid[1]
+            centroid_x_scaled = centroid_x * src_w  # Scale to source width
+            centroid_y_scaled = centroid_y * src_h  # Scale to source height
+
+            # Convert centroid coordinates to source space
+            # Drawing the centroid on the SVG with a larger radius and a highly visible color
+            dwg.add(dwg.circle(center=(centroid_x_scaled, centroid_y_scaled), r=10, fill='yellow'))
+
+
             dwg.add(dwg.rect(insert=(x, y), size=(w, h),
-                             fill='none', stroke='red', stroke_width='2'))
+                    fill='none', stroke='red', stroke_width='2'))
+
+
     return dwg.tostring()
 
 
@@ -132,13 +167,20 @@ def get_output(interpreter, score_threshold, top_k, image_scale=1.0):
 
     def make(i):
         ymin, xmin, ymax, xmax = boxes[i]
+
+        centroid_x = (xmin + xmax) / 2
+        centroid_y = (ymin + ymax) / 2
+        centroid = (centroid_x, centroid_y)
+
         return Object(
             id=int(category_ids[i]),
             score=scores[i],
             bbox=BBox(xmin=np.maximum(0.0, xmin),
                       ymin=np.maximum(0.0, ymin),
                       xmax=np.minimum(1.0, xmax),
-                      ymax=np.minimum(1.0, ymax)))
+                      ymax=np.minimum(1.0, ymax)),
+            centroid=centroid)
+
     return [make(i) for i in range(top_k) if scores[i] >= score_threshold]
 
 
@@ -163,6 +205,9 @@ def main():
     parser.add_argument('--tracker', help='Name of the Object Tracker To be used.',
                         default=None,
                         choices=[None, 'sort'])
+    parser.add_argument(
+        '--target', help='Target object label to track', type=str)
+
     args = parser.parse_args()
 
     print('Loading {} with {} labels.'.format(args.model, args.labels))
@@ -184,18 +229,26 @@ def main():
         objs = get_output(interpreter, args.threshold, args.top_k)
         end_time = time.monotonic()
         detections = []  # np.array([])
+
+        if args.target:
+            objs = [obj for obj in objs if labels.get(obj.id) == args.target]
+
         for n in range(0, len(objs)):
             element = []  # np.array([])
             element.append(objs[n].bbox.xmin)
             element.append(objs[n].bbox.ymin)
             element.append(objs[n].bbox.xmax)
             element.append(objs[n].bbox.ymax)
+            element.append(objs[n].centroid[0])
+            element.append(objs[n].centroid[1])
             element.append(objs[n].score)  # print('element= ',element)
             detections.append(element)  # print('dets: ',dets)
         # convert to numpy array #      print('npdets: ',dets)
+
         detections = np.array(detections)
         trdata = []
         trackerFlag = False
+
         if detections.any():
             if mot_tracker != None:
                 trdata = mot_tracker.update(detections)
@@ -204,6 +257,7 @@ def main():
                 'Inference: {:.2f} ms'.format((end_time - start_time) * 1000),
                 'FPS: {} fps'.format(round(next(fps_counter))), ]
         if len(objs) != 0:
+
             return generate_svg(src_size, inference_size, inference_box, objs, labels, text_lines, trdata, trackerFlag)
 
     result = gstreamer.run_pipeline(user_callback,

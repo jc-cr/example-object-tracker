@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import sys
-import svgwrite
 import threading
 from tracker import ObjectTracker
 

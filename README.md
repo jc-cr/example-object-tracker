@@ -1,19 +1,6 @@
 # Edge TPU Object Tracker Example
 
-This repo contains a collection of examples that use camera streams
-together with the [TensorFlow Lite API](https://tensorflow.org/lite) with a
-Coral device such as the
-[USB Accelerator](https://coral.withgoogle.com/products/accelerator) or
-[Dev Board](https://coral.withgoogle.com/products/dev-board) and provides an Object tracker for use with the detected objects.
-
-
-## Mods
- yeah do all the below, but to run the tracker cd over to the 'gstreamer' folder and run the command below
- ```bash
- python3 detect.py --tracker sort --target person --threshold 0.25
- ```
-
-
+Fork and modifications of Coral examples. Modified to do demo of delective object tracking and centroid depth extraction.
 
 ## Installation
 
@@ -28,9 +15,7 @@ Coral device such as the
 2.  Clone this Git repo onto your computer:
 
     ```
-    mkdir google-coral && cd google-coral
-
-    git clone https://github.com/google-coral/example-object-tracker.git
+    git clone https://github.com/jc-cr/example-object-tracker.git
 
     cd example-object-tracker/
     ```
@@ -44,9 +29,32 @@ Coral device such as the
     These models will be downloaded to a new folder
     ```models```.
 
+## Run the detections
 
-Further requirements may be needed by the different camera libraries, check the
-README file for the respective subfolder.
+Importantly, you should have the latest TensorFlow Lite runtime installed
+(as per the [Python quickstart](
+https://www.tensorflow.org/lite/guide/python)). You can check which version is installed
+using the ```pip3 show tflite_runtime``` command.
+
+1. CD into the gstreamer folder
+    ```
+    cd gstreamer
+    ```
+
+2.  Install the GStreamer libraries and Trackers:
+
+    ```
+    bash install_requirements.sh
+    ```
+3.  Run the detection model with Sort tracker
+    ```
+    python3 detect.py --tracker sort --target person --threshold 0.25 --videosrc /dev/video4
+    ```
+
+In the above command we use `/dev/video41 to access the RGB stream from Intel 435i.
+If usign other depth camera, you could find available video sources using the command `v4l2-ctl --list-devices --verbose`
+
+
 
 ## Contents
 
@@ -58,10 +66,6 @@ README file for the respective subfolder.
     This demo provides the support of an Object tracker. After following the setup 
     instructions in README file for the subfolder ```gstreamer```, you can run the tracker demo:
 
-    ```
-    cd gstreamer
-    python3 detect.py --tracker sort
-    ```
 
 ## Models
 
@@ -78,5 +82,3 @@ and its corresponding labels file:
 ```
 mobilenet_ssd_v2_coco_quant_postprocess_edgetpu.tflite, coco_labels.txt
 ```
-
-

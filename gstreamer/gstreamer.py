@@ -205,7 +205,7 @@ def run_pipeline(user_function,
                  src_size,
                  appsink_size,
                  trackerName,
-                 videosrc='/dev/video1',
+                 videosrc='/dev/video0',
                  videofmt='raw'):
     objectOfTracker = None
     if videofmt == 'h264':
